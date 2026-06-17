@@ -8,13 +8,31 @@ from app.utils.ring_buffer import RingBuffer
 class SessionState:
     session_id: str
 
+    # Calibration
+    baseline_pitch: float = 0.0
+    baseline_yaw: float = 0.0
+
+    is_calibrated: bool = False
+
+    calibration_pitch_samples: List[float] = field(
+        default_factory=list
+    )
+
+    calibration_yaw_samples: List[float] = field(
+        default_factory=list
+    )
+
+    # Duration Tracking
     downward_duration: float = 0.0
     side_view_duration: float = 0.0
 
+    # Scoring
     suspicion_score: int = 0
 
+    # Events
     events: List = field(default_factory=list)
 
+    # Pose History
     pose_history: RingBuffer = field(
         default_factory=lambda: RingBuffer(max_size=900)
     )

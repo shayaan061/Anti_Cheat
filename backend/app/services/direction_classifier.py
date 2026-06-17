@@ -3,7 +3,7 @@ class DirectionClassifier:
     def __init__(
         self,
         pitch_threshold: float = 5.0,
-        yaw_threshold: float = 10.0
+        yaw_threshold: float = 17.0
     ):
         self.pitch_threshold = pitch_threshold
         self.yaw_threshold = yaw_threshold

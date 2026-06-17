@@ -1,4 +1,5 @@
 from fastapi import WebSocket, WebSocketDisconnect
+import time
 
 from app.services.session_manager import SessionManager
 from app.services.pose_estimator import PoseEstimator
@@ -60,9 +61,103 @@ async def pose_websocket(websocket: WebSocket):
                 frame_height=frame_height
             )
 
-            direction = direction_classifier.classify(
-                pose_result["pitch"],
+            # =========================
+            # Calibration Phase
+            # =========================
+
+            if not session.is_calibrated:
+
+                session.calibration_pitch_samples.append(
+                    pose_result["pitch"]
+                )
+
+                session.calibration_yaw_samples.append(
+                    pose_result["yaw"]
+                )
+
+                print(
+                    f"Calibrating: "
+                    f"{len(session.calibration_pitch_samples)}/100"
+                )
+
+                if (
+                    len(
+                        session.calibration_pitch_samples
+                    ) >= 100
+                ):
+
+                    session.baseline_pitch = (
+                        sum(
+                            session.calibration_pitch_samples
+                        )
+                        /
+                        len(
+                            session.calibration_pitch_samples
+                        )
+                    )
+
+                    session.baseline_yaw = (
+                        sum(
+                            session.calibration_yaw_samples
+                        )
+                        /
+                        len(
+                            session.calibration_yaw_samples
+                        )
+                    )
+
+                    session.is_calibrated = True
+
+                    print(
+                        "\nCalibration Complete"
+                    )
+
+                    print(
+                        f"Baseline Pitch: "
+                        f"{session.baseline_pitch:.2f}"
+                    )
+
+                    print(
+                        f"Baseline Yaw: "
+                        f"{session.baseline_yaw:.2f}"
+                    )
+
+                continue
+
+            # =========================
+            # Normal Processing
+            # =========================
+
+            adjusted_pitch = (
+                pose_result["pitch"]
+                - session.baseline_pitch
+            )
+
+            adjusted_yaw = (
                 pose_result["yaw"]
+                - session.baseline_yaw
+            )
+
+            direction = direction_classifier.classify(
+                adjusted_pitch,
+                adjusted_yaw
+            )
+
+            session.pose_history.append(
+                {
+                    "timestamp": time.time(),
+
+                    "pitch": adjusted_pitch,
+                    "yaw": adjusted_yaw,
+                    "roll": pose_result["roll"],
+
+                    "direction": direction
+                }
+            )
+
+            print(
+                "History Size:",
+                len(session.pose_history.get_all())
             )
 
             print(
@@ -70,15 +165,18 @@ async def pose_websocket(websocket: WebSocket):
             )
 
             print(
-                f"Pitch: {pose_result['pitch']:.2f}"
+                f"Adjusted Pitch: "
+                f"{adjusted_pitch:.2f}"
             )
 
             print(
-                f"Yaw: {pose_result['yaw']:.2f}"
+                f"Adjusted Yaw: "
+                f"{adjusted_yaw:.2f}"
             )
 
             print(
-                f"Roll: {pose_result['roll']:.2f}"
+                f"Roll: "
+                f"{pose_result['roll']:.2f}"
             )
 
             print(
@@ -91,11 +189,16 @@ async def pose_websocket(websocket: WebSocket):
 
                     "sessionId": session_id,
 
-                    "pitch": pose_result["pitch"],
-                    "yaw": pose_result["yaw"],
+                    "pitch": adjusted_pitch,
+                    "yaw": adjusted_yaw,
                     "roll": pose_result["roll"],
 
-                    "direction": direction
+                    "direction": direction,
+
+                    "isCalibrated": session.is_calibrated,
+
+                    "baselinePitch": session.baseline_pitch,
+                    "baselineYaw": session.baseline_yaw
                 }
             )
 
